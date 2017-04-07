@@ -52,7 +52,7 @@ class CredentialsController {
     accountCredentialsProvider.all.collect(this.&renderSummary)
   }
 
-  @RequestMapping(value = "/{name:.+}", method = RequestMethod.GET)
+  @RequestMapping(value = "/{name:.*}", method = RequestMethod.GET)
   Map getAccount(@PathVariable("name") String name) {
     def accountDetail = renderDetail(accountCredentialsProvider.getCredentials(name))
     if (!accountDetail) {

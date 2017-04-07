@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import spock.lang.Shared
 import spock.lang.Specification
+import spock.lang.Unroll
 
 import javax.ws.rs.core.MediaType
 
@@ -42,7 +43,7 @@ class CredentialsControllerSpec extends Specification {
     def objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
     def credsRepo = new MapBackedAccountCredentialsRepository()
     def credsProvider = new DefaultAccountCredentialsProvider(credsRepo)
-    credsRepo.save("test", new TestNamedAccountCredentials())
+    credsRepo.save("test", new TestNamedAccountCredentials("test"))
     def mvc = MockMvcBuilders.standaloneSetup(new CredentialsController(accountCredentialsProvider: credsProvider, objectMapper: objectMapper, credentialsConfiguration: new CredentialsConfiguration())).build()
 
     when:
@@ -56,11 +57,41 @@ class CredentialsControllerSpec extends Specification {
     parsedResponse == [[name: "test", environment: "env", accountType: "acctType", cloudProvider: "testProvider", type: "testProvider", requiredGroupMembership: ["test"], challengeDestructiveActions: false, primaryAccount: false]]
   }
 
+  @Unroll
+  void "specific named account are listed"() {
+    setup:
+
+    def objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+    def credsRepo = new MapBackedAccountCredentialsRepository()
+    def credsProvider = new DefaultAccountCredentialsProvider(credsRepo)
+    credsRepo.save(name, new TestNamedAccountCredentials(name))
+    def mvc = MockMvcBuilders.standaloneSetup(new CredentialsController(accountCredentialsProvider: credsProvider, objectMapper: objectMapper, credentialsConfiguration: new CredentialsConfiguration())).build()
+
+    when:
+    def result = mvc.perform(MockMvcRequestBuilders.get("/credentials/$name").accept(MediaType.APPLICATION_JSON)).andReturn()
+
+    then:
+    result.response.status == 200
+
+    Map parsedResponse = new JsonSlurper().parseText(result.response.contentAsString) as Map
+
+    parsedResponse == [name: expectedName, environment: "env", accountType: "acctType", cloudProvider: "testProvider", type: "testProvider", requiredGroupMembership: [expectedName], challengeDestructiveActions: false, primaryAccount: false]
+
+    where:
+      name       || expectedName
+      "test.com" || "test.com"
+      "test"     || "test"
+  }
+
   static class TestNamedAccountCredentials implements AccountCredentials<Map> {
 
-    String name = "test"
+    String name
     String environment = "env"
     String accountType = "acctType"
+
+    TestNamedAccountCredentials(String name) {
+      this.name = name
+    }
 
     @Override
     Map getCredentials() {
@@ -74,7 +105,7 @@ class CredentialsControllerSpec extends Specification {
 
     @Override
     List<String> getRequiredGroupMembership() {
-      ["test"]
+      [name]
     }
   }
 
